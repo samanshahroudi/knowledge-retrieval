@@ -1,0 +1,35 @@
+# Tenant-aware knowledge retrieval
+
+## The problem
+
+A useful RAG system must retrieve the right evidence and must never mix customers' documents. This service puts tenant filtering in the SQL query before ranking, chunks documents deterministically, combines SQLite FTS5 BM25 with token-overlap ranking through reciprocal rank fusion, and offers optional OpenAI embedding similarity and a cited answer.
+
+## Architecture and how it works
+
+`file → fixed-size word chunks → SQLite + FTS5 → tenant-filtered candidates → reciprocal rank fusion → cited answer`
+
+Ingestion replaces prior chunks for the same tenant and source in one transaction. A stable chunk ID lets evaluations point to the exact source span. Search returns chunk text and source names, not just an opaque answer. `grounded_answer` sends only retrieved excerpts to the OpenAI Responses API and asks for chunk-ID citations. The query and excerpts are still untrusted content.
+
+## Concepts and choices
+
+This project deliberately exposes retrieval mechanics instead of hiding them behind LangChain. SQLite FTS5 gives a strong lexical baseline with no external service. Token overlap supplies a second signal; optional OpenAI embeddings add a semantic signal. Reciprocal rank fusion combines the rankings. `langchain_tool.py` wraps the retriever as a LangChain tool with the tenant fixed outside the model's arguments. The evaluation project tests recall against the baseline. Source code is in `retrieval.py`, CLI in `cli.py`, and sample documents in `fixtures/`.
+
+## Run and example
+
+From `portfolio`:
+
+```bash
+python -m 02_knowledge_retrieval.cli --db knowledge.db ingest --tenant demo 02_knowledge_retrieval/fixtures/handoff.md
+python -m 02_knowledge_retrieval.cli --db knowledge.db search --tenant demo 'incident handoff checklist'
+```
+
+Add `--answer` to the search command for an OpenAI-generated answer; set `OPENAI_API_KEY` first. Ingest `security.md` under another tenant and confirm that `demo` searches cannot see it.
+Pass `--embeddings` on both ingest and search to include vector similarity. Keep that mode consistent for a database; the demo does not yet version embedding models.
+
+## Trade-offs, limitations, and next production steps
+
+Word-count chunking can split a sentence and ignores document structure. The token-overlap signal is not semantic and may fail on synonyms. The vector path makes one paid API call per chunk and does not batch requests; its model version is not stored. Add batched embedding generation with versioned vectors, reranking, document-level ACLs, incremental ingestion, source freshness, and citation verification before a production rollout. FTS query construction limits terms to alphanumeric tokens, but unbounded ingestion still needs quotas and MIME validation. A model can hallucinate citations despite the prompt; validate cited IDs and evaluate answer faithfulness separately.
+
+## Interview preparation
+
+Be ready to explain pre-filtering versus post-filtering for security, chunking trade-offs, BM25, reciprocal rank fusion, recall@k, answer faithfulness, and why retrieval quality should be measured separately from generation quality.
