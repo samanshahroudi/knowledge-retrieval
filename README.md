@@ -12,7 +12,7 @@ Ingestion replaces prior chunks for the same tenant and source in one transactio
 
 ## Concepts and choices
 
-This project deliberately exposes retrieval mechanics instead of hiding them behind LangChain. SQLite FTS5 gives a strong lexical baseline with no external service. Token overlap supplies a second signal; optional OpenAI embeddings add a semantic signal. Reciprocal rank fusion combines the rankings. `langchain_tool.py` wraps the retriever as a LangChain tool with the tenant fixed outside the model's arguments. The evaluation project tests recall against the baseline. Source code is in `retrieval.py`, CLI in `cli.py`, and sample documents in `fixtures/`.
+This project deliberately exposes retrieval mechanics instead of hiding them behind LangChain. SQLite FTS5 gives a strong lexical baseline with no external service. Token overlap supplies a second signal; optional OpenAI embeddings add a semantic signal. Reciprocal rank fusion combines the rankings. `langchain_tool.py` wraps the retriever as a LangChain tool with the tenant fixed outside the model's arguments. The separate evaluation lab can score ranked results exported from this retriever. Source code is in `knowledge_retrieval/retrieval.py`, CLI in `knowledge_retrieval/cli.py`, and sample documents in `fixtures/`.
 
 ## Run and example
 
