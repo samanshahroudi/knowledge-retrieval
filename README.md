@@ -16,11 +16,11 @@ This project deliberately exposes retrieval mechanics instead of hiding them beh
 
 ## Run and example
 
-From `portfolio`:
+From this repository after `python -m pip install -e ".[dev]"`:
 
 ```bash
-python -m 02_knowledge_retrieval.cli --db knowledge.db ingest --tenant demo 02_knowledge_retrieval/fixtures/handoff.md
-python -m 02_knowledge_retrieval.cli --db knowledge.db search --tenant demo 'incident handoff checklist'
+python -m knowledge_retrieval.cli --db knowledge.db ingest --tenant demo fixtures/handoff.md
+python -m knowledge_retrieval.cli --db knowledge.db search --tenant demo 'incident handoff checklist'
 ```
 
 Add `--answer` to the search command for an OpenAI-generated answer; set `OPENAI_API_KEY` first. Ingest `security.md` under another tenant and confirm that `demo` searches cannot see it.
@@ -33,3 +33,7 @@ Word-count chunking can split a sentence and ignores document structure. The tok
 ## Interview preparation
 
 Be ready to explain pre-filtering versus post-filtering for security, chunking trade-offs, BM25, reciprocal rank fusion, recall@k, answer faithfulness, and why retrieval quality should be measured separately from generation quality.
+
+## Verify
+
+Run `python -m pytest -q` and `python -m ruff check .` from this repository.

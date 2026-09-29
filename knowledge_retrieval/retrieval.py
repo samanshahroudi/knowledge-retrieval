@@ -1,10 +1,10 @@
 """Small, inspectable hybrid retriever with tenant filters applied before ranking."""
 from __future__ import annotations
 
+import json
 import math
 import re
 import sqlite3
-import json
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
