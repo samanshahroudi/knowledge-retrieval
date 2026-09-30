@@ -33,9 +33,9 @@ class Store:
 
     def ingest(self, tenant: str, source: str, text: str, size: int = 120) -> int:
         import hashlib
+        if size <= 0:
+            raise ValueError("chunk size must be positive")
         words = text.split()
-        if not words:
-            return 0
         with sqlite3.connect(self.path) as db:
             ids = [r[0] for r in db.execute("SELECT id FROM chunks WHERE tenant=? AND source=?", (tenant, source))]
             for key in ids:

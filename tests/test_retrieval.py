@@ -1,3 +1,5 @@
+import pytest
+
 from knowledge_retrieval.langchain_tool import make_search_tool
 from knowledge_retrieval.retrieval import Store
 
@@ -19,3 +21,12 @@ def test_vector_finds_synonym(tmp_path):
     store = Store(str(tmp_path / "vectors.db"), embed=embed)
     store.ingest("a", "runbook", "outage response procedure")
     assert store.search("a", "downtime")[0]["source"] == "runbook"
+
+
+def test_empty_reingestion_removes_stale_chunks(tmp_path):
+    store = Store(str(tmp_path / "knowledge.db"))
+    store.ingest("a", "runbook", "incident handoff checklist")
+    assert store.ingest("a", "runbook", "   ") == 0
+    assert store.search("a", "incident handoff") == []
+    with pytest.raises(ValueError, match="positive"):
+        store.ingest("a", "runbook", "text", size=0)
