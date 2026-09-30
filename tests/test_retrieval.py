@@ -30,3 +30,10 @@ def test_empty_reingestion_removes_stale_chunks(tmp_path):
     assert store.search("a", "incident handoff") == []
     with pytest.raises(ValueError, match="positive"):
         store.ingest("a", "runbook", "text", size=0)
+
+
+def test_negative_search_limit_is_rejected(tmp_path):
+    store = Store(str(tmp_path / "knowledge.db"))
+    store.ingest("a", "runbook", "incident handoff checklist")
+    with pytest.raises(ValueError, match="limit"):
+        store.search("a", "incident", limit=-1)
