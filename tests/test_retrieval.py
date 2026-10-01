@@ -37,3 +37,17 @@ def test_negative_search_limit_is_rejected(tmp_path):
     store.ingest("a", "runbook", "incident handoff checklist")
     with pytest.raises(ValueError, match="limit"):
         store.search("a", "incident", limit=-1)
+
+
+def test_zero_search_limit_skips_embedding(tmp_path):
+    calls = []
+
+    def embed(text):
+        calls.append(text)
+        return [1.0, 0.0]
+
+    store = Store(str(tmp_path / "vectors.db"), embed=embed)
+    store.ingest("a", "runbook", "outage response procedure")
+    calls.clear()
+    assert store.search("a", "downtime", limit=0) == []
+    assert calls == []
