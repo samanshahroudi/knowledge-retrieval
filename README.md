@@ -10,6 +10,8 @@ A useful RAG system must retrieve the right evidence and must never mix customer
 
 Ingestion replaces prior chunks for the same tenant and source in one transaction. A stable chunk ID lets evaluations point to the exact source span. Search returns chunk text and source names, not just an opaque answer. `grounded_answer` sends only retrieved excerpts to the OpenAI Responses API and asks for chunk-ID citations. The query and excerpts are still untrusted content.
 
+Chunk IDs escape colons and percent signs in tenant/source names before hashing so distinct pairs cannot share the same hash input. Reingest existing sources whose tenant or source contains those characters to update their IDs; other IDs stay unchanged.
+
 ## Concepts and choices
 
 This project deliberately exposes retrieval mechanics instead of hiding them behind LangChain. SQLite FTS5 gives a strong lexical baseline with no external service. Token overlap supplies a second signal; optional OpenAI embeddings add a semantic signal. Reciprocal rank fusion combines the rankings. `langchain_tool.py` wraps the retriever as a LangChain tool with the tenant fixed outside the model's arguments. The separate evaluation lab can score ranked results exported from this retriever. Source code is in `knowledge_retrieval/retrieval.py`, CLI in `knowledge_retrieval/cli.py`, and sample documents in `fixtures/`.

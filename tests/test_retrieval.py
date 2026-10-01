@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 
 from knowledge_retrieval.langchain_tool import make_search_tool
@@ -51,3 +53,27 @@ def test_zero_search_limit_skips_embedding(tmp_path):
     calls.clear()
     assert store.search("a", "downtime", limit=0) == []
     assert calls == []
+
+
+@pytest.mark.parametrize("pairs", [
+    [("a:b", "c"), ("a", "b:c")],
+    [("a:b", "c"), ("a%3Ab", "c")],
+])
+def test_chunk_ids_distinguish_tenant_source_boundaries(tmp_path, pairs):
+    store = Store(str(tmp_path / "knowledge.db"))
+    for tenant, source in pairs:
+        assert store.ingest(tenant, source, "incident handoff checklist") == 1
+    hits = [store.search(tenant, "incident") for tenant, source in pairs]
+    assert [rows[0]["source"] for rows in hits] == [source for tenant, source in pairs]
+    assert hits[0][0]["id"] != hits[1][0]["id"]
+    # Replacing one tenant's source must leave the other tenant's chunks intact.
+    store.ingest(*pairs[0], "replacement content")
+    assert store.search(pairs[0][0], "incident") == []
+    assert store.search(pairs[1][0], "incident")[0]["id"] == hits[1][0]["id"]
+
+
+def test_chunk_ids_remain_stable_without_reserved_characters(tmp_path):
+    store = Store(str(tmp_path / "knowledge.db"))
+    store.ingest("demo", "handoff.md", "incident handoff checklist")
+    expected = hashlib.sha256(b"demo:handoff.md:0").hexdigest()[:20]
+    assert store.search("demo", "handoff")[0]["id"] == expected

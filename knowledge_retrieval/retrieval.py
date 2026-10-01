@@ -44,7 +44,9 @@ class Store:
             db.execute("DELETE FROM chunks WHERE tenant=? AND source=?", (tenant, source))
             for offset in range(0, len(words), size):
                 body = " ".join(words[offset:offset + size])
-                key = hashlib.sha256(f"{tenant}:{source}:{offset}".encode()).hexdigest()[:20]
+                identity = ":".join(part.replace("%", "%25").replace(":", "%3A")
+                                    for part in (tenant, source, str(offset)))
+                key = hashlib.sha256(identity.encode()).hexdigest()[:20]
                 db.execute("INSERT INTO chunks VALUES (?,?,?,?)", (key, tenant, source, body))
                 db.execute("INSERT INTO chunk_fts VALUES (?,?)", (key, body))
                 if self.embed:
