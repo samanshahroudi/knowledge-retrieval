@@ -1,4 +1,5 @@
 import hashlib
+import sqlite3
 
 import pytest
 
@@ -77,3 +78,23 @@ def test_chunk_ids_remain_stable_without_reserved_characters(tmp_path):
     store.ingest("demo", "handoff.md", "incident handoff checklist")
     expected = hashlib.sha256(b"demo:handoff.md:0").hexdigest()[:20]
     assert store.search("demo", "handoff")[0]["id"] == expected
+
+
+def test_failed_embedding_reingestion_preserves_original_index(tmp_path):
+    def embed(text):
+        if "failure" in text:
+            raise RuntimeError("embedding unavailable")
+        return [1.0, 0.0]
+
+    store = Store(str(tmp_path / "vectors.db"), embed=embed)
+    store.ingest("demo", "runbook", "original outage procedure", size=3)
+    with sqlite3.connect(store.path) as db:
+        before = {table: db.execute(f"SELECT * FROM {table}").fetchall()
+                  for table in ("chunks", "chunk_fts", "vectors")}
+    # Fail after writing a replacement chunk, exercising rollback of deletes and inserts.
+    with pytest.raises(RuntimeError, match="embedding unavailable"):
+        store.ingest("demo", "runbook", "replacement outage procedure failure", size=3)
+    with sqlite3.connect(store.path) as db:
+        for table, rows in before.items():
+            assert db.execute(f"SELECT * FROM {table}").fetchall() == rows
+    assert store.search("demo", "original")[0]["text"] == "original outage procedure"
