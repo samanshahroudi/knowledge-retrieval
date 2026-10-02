@@ -26,6 +26,17 @@ def validate_embedding(vector: list[float]) -> list[float]:
     return vector
 
 
+def _unit_embedding(vector: list[float]) -> list[float]:
+    validate_embedding(vector)
+    scale = max((abs(value) for value in vector), default=0)
+    if not scale:
+        return vector
+    # Scale before computing the norm to avoid overflow and underflow.
+    scaled = [value / scale for value in vector]
+    norm = math.hypot(*scaled)
+    return [value / norm for value in scaled]
+
+
 class Store:
     def __init__(self, path: str, embed: Callable[[str], list[float]] | None = None):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -82,14 +93,12 @@ class Store:
         scores: dict[str, float] = {}
         rankings = [[r[0] for r in lexical], [r[0] for r in semantic]]
         if self.embed and vectors:
-            query_vector = validate_embedding(self.embed(query))
+            query_vector = _unit_embedding(self.embed(query))
             def vector_score(vector: list[float]) -> float:
-                validate_embedding(vector)
+                vector = _unit_embedding(vector)
                 if len(vector) != len(query_vector):
                     raise ValueError("embedding dimensions changed; reindex documents")
-                dot = sum(a * b for a, b in zip(query_vector, vector))
-                norm = math.sqrt(sum(a*a for a in query_vector) * sum(b*b for b in vector))
-                return dot / norm if norm else 0
+                return math.fsum(a * b for a, b in zip(query_vector, vector))
             scored_vectors = [(key, vector_score(json.loads(vector))) for key, vector in vectors]
             rankings.append([key for key, score in sorted(scored_vectors,
                 key=lambda item: item[1], reverse=True)[:30] if score > 0])

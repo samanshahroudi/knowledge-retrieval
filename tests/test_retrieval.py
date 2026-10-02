@@ -36,6 +36,17 @@ def test_vector_ranking_normalizes_magnitude_and_omits_nonpositive_scores(tmp_pa
     assert [hit["source"] for hit in store.search("demo", "query")] == ["closest", "large"]
 
 
+@pytest.mark.parametrize("magnitude", [1e-300, 1e300, 1.7e308])
+def test_vector_ranking_handles_extreme_finite_magnitudes(tmp_path, magnitude):
+    vectors = {"query": [magnitude, magnitude], "closest": [magnitude, magnitude],
+               "partial": [magnitude, 0.0], "opposite": [-magnitude, -magnitude],
+               "zero": [0.0, 0.0]}
+    store = Store(str(tmp_path / "vectors.db"), embed=vectors.__getitem__)
+    for source in ["zero", "partial", "opposite", "closest"]:
+        store.ingest("demo", source, source)
+    assert [hit["source"] for hit in store.search("demo", "query")] == ["closest", "partial"]
+
+
 def test_empty_reingestion_removes_stale_chunks(tmp_path):
     store = Store(str(tmp_path / "knowledge.db"))
     store.ingest("a", "runbook", "incident handoff checklist")
