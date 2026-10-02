@@ -134,3 +134,30 @@ def test_vector_search_filters_tenants_before_dimension_checks(tmp_path):
     hits = make_search_tool(store, "demo").invoke({"query": "downtime"})
     assert [(hit["tenant"], hit["source"], hit["text"]) for hit in hits] == [
         ("demo", "runbook", "outage response procedure")]
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+def test_nonfinite_embedding_reingestion_preserves_original_index(tmp_path, invalid):
+    store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "original outage procedure")
+    before = store.search("demo", "outage")
+    store.embed = lambda text: [invalid, 0.0]
+    with pytest.raises(ValueError, match="embedding values must be finite"):
+        store.ingest("demo", "runbook", "replacement outage procedure")
+    store.embed = lambda text: [1.0, 0.0]
+    assert store.search("demo", "outage") == before
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("location", ["query", "stored"])
+def test_search_rejects_nonfinite_embeddings(tmp_path, invalid, location):
+    store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "outage response procedure")
+    if location == "query":
+        store.embed = lambda text: [invalid, 0.0]
+    else:
+        import json
+        with sqlite3.connect(store.path) as db:
+            db.execute("UPDATE vectors SET vector=?", (json.dumps([invalid, 0.0]),))
+    with pytest.raises(ValueError, match="embedding values must be finite"):
+        store.search("demo", "downtime")

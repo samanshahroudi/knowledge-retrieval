@@ -20,6 +20,12 @@ def cosine(a: Counter[str], b: Counter[str]) -> float:
     return dot / norm if norm else 0.0
 
 
+def validate_embedding(vector: list[float]) -> list[float]:
+    if not all(math.isfinite(value) for value in vector):
+        raise ValueError("embedding values must be finite")
+    return vector
+
+
 class Store:
     def __init__(self, path: str, embed: Callable[[str], list[float]] | None = None):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +56,8 @@ class Store:
                 db.execute("INSERT INTO chunks VALUES (?,?,?,?)", (key, tenant, source, body))
                 db.execute("INSERT INTO chunk_fts VALUES (?,?)", (key, body))
                 if self.embed:
-                    db.execute("INSERT INTO vectors VALUES (?,?)", (key, json.dumps(self.embed(body))))
+                    vector = validate_embedding(self.embed(body))
+                    db.execute("INSERT INTO vectors VALUES (?,?)", (key, json.dumps(vector)))
         return math.ceil(len(words) / size)
 
     def search(self, tenant: str, query: str, limit: int = 5) -> list[dict]:
@@ -75,8 +82,9 @@ class Store:
         scores: dict[str, float] = {}
         rankings = [[r[0] for r in lexical], [r[0] for r in semantic]]
         if self.embed and vectors:
-            query_vector = self.embed(query)
+            query_vector = validate_embedding(self.embed(query))
             def vector_score(vector: list[float]) -> float:
+                validate_embedding(vector)
                 if len(vector) != len(query_vector):
                     raise ValueError("embedding dimensions changed; reindex documents")
                 dot = sum(a * b for a, b in zip(query_vector, vector))
