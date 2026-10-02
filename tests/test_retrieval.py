@@ -110,3 +110,17 @@ def test_tied_results_keep_order_after_reingestion(tmp_path, use_embeddings):
     before = store.search("demo", "incident")
     store.ingest("demo", before[0]["source"], before[0]["text"])
     assert store.search("demo", "incident") == before
+
+
+def test_vector_search_filters_tenants_before_dimension_checks(tmp_path):
+    def embed(text):
+        # Simulate a different embedding model used for another tenant.
+        return [1.0, 0.0, 0.0] if "private" in text else [1.0, 0.0]
+
+    store = Store(str(tmp_path / "vectors.db"), embed=embed)
+    store.ingest("demo", "runbook", "outage response procedure")
+    store.ingest("other", "secret", "private outage response procedure")
+    # No lexical overlap: only the vector path can find this synonym.
+    hits = make_search_tool(store, "demo").invoke({"query": "downtime"})
+    assert [(hit["tenant"], hit["source"], hit["text"]) for hit in hits] == [
+        ("demo", "runbook", "outage response procedure")]
