@@ -26,6 +26,16 @@ def test_vector_finds_synonym(tmp_path):
     assert store.search("a", "downtime")[0]["source"] == "runbook"
 
 
+def test_vector_ranking_normalizes_magnitude_and_omits_nonpositive_scores(tmp_path):
+    vectors = {"query": [1.0, 0.0], "closest": [1.0, 0.0], "large": [10.0, 10.0],
+               "opposite": [-1.0, 0.0], "orthogonal": [0.0, 1.0], "zero": [0.0, 0.0]}
+    store = Store(str(tmp_path / "vectors.db"), embed=vectors.__getitem__)
+    for source in ["zero", "large", "orthogonal", "opposite", "closest"]:
+        store.ingest("demo", source, source)
+    # No token overlap: ranking and filtering must come entirely from vectors.
+    assert [hit["source"] for hit in store.search("demo", "query")] == ["closest", "large"]
+
+
 def test_empty_reingestion_removes_stale_chunks(tmp_path):
     store = Store(str(tmp_path / "knowledge.db"))
     store.ingest("a", "runbook", "incident handoff checklist")

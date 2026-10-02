@@ -82,9 +82,9 @@ class Store:
                 dot = sum(a * b for a, b in zip(query_vector, vector))
                 norm = math.sqrt(sum(a*a for a in query_vector) * sum(b*b for b in vector))
                 return dot / norm if norm else 0
-            rankings.append([key for key, vector in sorted(vectors,
-                key=lambda item: vector_score(json.loads(item[1])), reverse=True)[:30]
-                if vector_score(json.loads(vector)) > 0])
+            scored_vectors = [(key, vector_score(json.loads(vector))) for key, vector in vectors]
+            rankings.append([key for key, score in sorted(scored_vectors,
+                key=lambda item: item[1], reverse=True)[:30] if score > 0])
         for ranking in rankings:
             for rank, key in enumerate(ranking):
                 scores[key] = scores.get(key, 0) + 1 / (60 + rank + 1)
