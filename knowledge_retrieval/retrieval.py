@@ -64,11 +64,11 @@ class Store:
         with sqlite3.connect(self.path) as db:
             lexical = db.execute(
                 "SELECT c.id FROM chunk_fts f JOIN chunks c ON c.id=f.id "
-                "WHERE c.tenant=? AND chunk_fts MATCH ? ORDER BY bm25(chunk_fts) LIMIT 30",
+                "WHERE c.tenant=? AND chunk_fts MATCH ? ORDER BY bm25(chunk_fts), c.id LIMIT 30",
                 (tenant, " OR ".join(terms)),
             ).fetchall()
-            rows = db.execute("SELECT id,source,body FROM chunks WHERE tenant=?", (tenant,)).fetchall()
-            vectors = db.execute("SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id WHERE c.tenant=?", (tenant,)).fetchall()
+            rows = db.execute("SELECT id,source,body FROM chunks WHERE tenant=? ORDER BY id", (tenant,)).fetchall()
+            vectors = db.execute("SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id WHERE c.tenant=? ORDER BY v.id", (tenant,)).fetchall()
         q = tokens(query)
         semantic = sorted((r for r in rows if cosine(q, tokens(r[2])) > 0),
                           key=lambda r: cosine(q, tokens(r[2])), reverse=True)[:30]
@@ -91,7 +91,7 @@ class Store:
         by_id = {r[0]: r for r in rows}
         return [{"id": key, "tenant": tenant, "source": by_id[key][1], "text": by_id[key][2],
                  "score": round(score, 5)} for key, score in
-                sorted(scores.items(), key=lambda item: item[1], reverse=True)[:limit]]
+                sorted(scores.items(), key=lambda item: (-item[1], item[0]))[:limit]]
 
 
 def grounded_answer(question: str, hits: list[dict], model: str = "gpt-4.1-mini") -> str:

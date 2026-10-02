@@ -98,3 +98,15 @@ def test_failed_embedding_reingestion_preserves_original_index(tmp_path):
         for table, rows in before.items():
             assert db.execute(f"SELECT * FROM {table}").fetchall() == rows
     assert store.search("demo", "original")[0]["text"] == "original outage procedure"
+
+
+@pytest.mark.parametrize("use_embeddings", [False, True])
+def test_tied_results_keep_order_after_reingestion(tmp_path, use_embeddings):
+    store = Store(str(tmp_path / "knowledge.db"),
+                  embed=(lambda text: [1.0, 0.0]) if use_embeddings else None)
+    # Exceed the candidate cutoff to exercise tie ordering before truncation.
+    for index in range(35):
+        store.ingest("demo", f"source-{index}", "incident handoff checklist")
+    before = store.search("demo", "incident")
+    store.ingest("demo", before[0]["source"], before[0]["text"])
+    assert store.search("demo", "incident") == before

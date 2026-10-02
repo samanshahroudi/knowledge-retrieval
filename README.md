@@ -10,6 +10,8 @@ A useful RAG system must retrieve the right evidence and must never mix customer
 
 Ingestion replaces prior chunks for the same tenant and source in one transaction. A stable chunk ID lets evaluations point to the exact source span. Search returns chunk text and source names, not just an opaque answer. `grounded_answer` sends only retrieved excerpts to the OpenAI Responses API and asks for chunk-ID citations. The query and excerpts are still untrusted content.
 
+Ranking ties use chunk IDs as a stable order, so reingesting unchanged content preserves result order, including at candidate cutoffs.
+
 Chunk IDs escape colons and percent signs in tenant/source names before hashing so distinct pairs cannot share the same hash input. Reingest existing sources whose tenant or source contains those characters to update their IDs; other IDs stay unchanged.
 
 ## Concepts and choices
