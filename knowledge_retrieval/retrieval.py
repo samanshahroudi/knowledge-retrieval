@@ -52,6 +52,8 @@ class Store:
 
     def ingest(self, tenant: str, source: str, text: str, size: int = 120) -> int:
         import hashlib
+        if not tenant.strip() or not source.strip():
+            raise ValueError("tenant and source cannot be blank")
         if size <= 0:
             raise ValueError("chunk size must be positive")
         words = text.split()

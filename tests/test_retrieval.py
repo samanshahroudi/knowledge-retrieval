@@ -208,3 +208,20 @@ def test_embedding_dimension_mismatch_requires_reindexing(tmp_path, location):
     store.embed = lambda text: [1.0, 0.0]
     store.ingest("demo", "runbook", "outage response procedure")
     assert store.search("demo", "downtime")[0]["source"] == "runbook"
+
+
+@pytest.mark.parametrize("tenant,source", [("", "runbook"), (" \t", "runbook"),
+                                          ("demo", ""), ("demo", " \n")])
+def test_blank_ingestion_identity_leaves_index_unchanged(tmp_path, tenant, source):
+    calls = []
+    store = Store(str(tmp_path / "knowledge.db"), embed=lambda text: calls.append(text) or [1.0])
+    store.ingest("demo", "runbook", "original outage procedure")
+    before = store.search("demo", "outage")
+    calls.clear()
+    with pytest.raises(ValueError, match="tenant and source cannot be blank"):
+        store.ingest(tenant, source, "replacement outage procedure")
+    assert calls == []
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("SELECT tenant,source,body FROM chunks").fetchall() == [
+            ("demo", "runbook", "original outage procedure")]
+    assert store.search("demo", "outage") == before
