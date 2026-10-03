@@ -191,3 +191,20 @@ def test_empty_embeddings_are_rejected(tmp_path, location):
     if location == "ingest":
         store.embed = lambda text: [1.0, 0.0]
         assert store.search("demo", "original")[0]["text"] == "original outage procedure"
+
+
+@pytest.mark.parametrize("location", ["query", "stored"])
+def test_embedding_dimension_mismatch_requires_reindexing(tmp_path, location):
+    store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "outage response procedure")
+    if location == "query":
+        store.embed = lambda text: [1.0]
+    else:
+        with sqlite3.connect(store.path) as db:
+            db.execute("UPDATE vectors SET vector='[1.0]'")
+    with pytest.raises(ValueError, match="embedding dimensions changed; reindex documents"):
+        store.search("demo", "downtime")
+    # A failed search must leave the index usable after fixing the model or reindexing.
+    store.embed = lambda text: [1.0, 0.0]
+    store.ingest("demo", "runbook", "outage response procedure")
+    assert store.search("demo", "downtime")[0]["source"] == "runbook"
