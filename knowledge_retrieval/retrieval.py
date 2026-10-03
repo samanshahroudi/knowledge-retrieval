@@ -21,6 +21,8 @@ def cosine(a: Counter[str], b: Counter[str]) -> float:
 
 
 def validate_embedding(vector: list[float]) -> list[float]:
+    if not vector:
+        raise ValueError("embedding must have at least one dimension")
     if not all(math.isfinite(value) for value in vector):
         raise ValueError("embedding values must be finite")
     return vector

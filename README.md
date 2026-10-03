@@ -12,7 +12,7 @@ Ingestion replaces prior chunks for the same tenant and source in one transactio
 
 Ranking ties use chunk IDs as a stable order, so reingesting unchanged content preserves result order, including at candidate cutoffs.
 
-Embedding values must be finite. Invalid values reject ingestion without replacing the existing index, and searches reject invalid query or stored vectors rather than silently dropping results.
+Embeddings must have at least one dimension, and their values must be finite. Invalid values reject ingestion without replacing the existing index, and searches reject invalid query or stored vectors rather than silently dropping results.
 Vector similarity normalizes with scaling so very large or small finite magnitudes preserve ranking.
 
 Chunk IDs escape colons and percent signs in tenant/source names before hashing so distinct pairs cannot share the same hash input. Reingest existing sources whose tenant or source contains those characters to update their IDs; other IDs stay unchanged.

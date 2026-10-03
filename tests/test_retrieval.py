@@ -172,3 +172,22 @@ def test_search_rejects_nonfinite_embeddings(tmp_path, invalid, location):
             db.execute("UPDATE vectors SET vector=?", (json.dumps([invalid, 0.0]),))
     with pytest.raises(ValueError, match="embedding values must be finite"):
         store.search("demo", "downtime")
+
+
+@pytest.mark.parametrize("location", ["ingest", "query", "stored"])
+def test_empty_embeddings_are_rejected(tmp_path, location):
+    store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "original outage procedure")
+    if location == "stored":
+        with sqlite3.connect(store.path) as db:
+            db.execute("UPDATE vectors SET vector='[]'")
+    else:
+        store.embed = lambda text: []
+    with pytest.raises(ValueError, match="at least one dimension"):
+        if location == "ingest":
+            store.ingest("demo", "runbook", "replacement outage procedure")
+        else:
+            store.search("demo", "downtime")
+    if location == "ingest":
+        store.embed = lambda text: [1.0, 0.0]
+        assert store.search("demo", "original")[0]["text"] == "original outage procedure"
