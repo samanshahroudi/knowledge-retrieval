@@ -78,7 +78,8 @@ class Store:
             raise ValueError("search limit cannot be negative")
         if limit == 0:
             return []
-        terms = list(tokens(query))
+        q = tokens(query)
+        terms = list(q)
         if not terms:
             return []
         with sqlite3.connect(self.path) as db:
@@ -89,11 +90,12 @@ class Store:
             ).fetchall()
             rows = db.execute("SELECT id,source,body FROM chunks WHERE tenant=? ORDER BY id", (tenant,)).fetchall()
             vectors = db.execute("SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id WHERE c.tenant=? ORDER BY v.id", (tenant,)).fetchall()
-        q = tokens(query)
-        semantic = sorted((r for r in rows if cosine(q, tokens(r[2])) > 0),
-                          key=lambda r: cosine(q, tokens(r[2])), reverse=True)[:30]
+        scored_overlap = [(r[0], cosine(q, tokens(r[2]))) for r in rows]
+        semantic = [key for key, score in sorted(
+            (item for item in scored_overlap if item[1] > 0),
+            key=lambda item: item[1], reverse=True)[:30]]
         scores: dict[str, float] = {}
-        rankings = [[r[0] for r in lexical], [r[0] for r in semantic]]
+        rankings = [[r[0] for r in lexical], semantic]
         if self.embed and vectors:
             query_vector = _unit_embedding(self.embed(query))
             def vector_score(vector: list[float]) -> float:
