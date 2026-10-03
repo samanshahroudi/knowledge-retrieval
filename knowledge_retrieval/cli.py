@@ -13,16 +13,20 @@ def main() -> None:
     ingest = sub.add_parser("ingest")
     ingest.add_argument("--tenant", required=True)
     ingest.add_argument("file")
+    ingest.add_argument("--source", help="Stable source name; defaults to the file basename")
     search = sub.add_parser("search")
     search.add_argument("--tenant", required=True)
     search.add_argument("query")
     search.add_argument("--answer", action="store_true")
     args = parser.parse_args()
+    if args.command == "ingest" and args.source is not None and not args.source.strip():
+        parser.error("--source cannot be blank")
     store = Store(args.db, embed=openai_embed if args.embeddings else None)
     if args.command == "ingest":
         from pathlib import Path
         path = Path(args.file)
-        print(store.ingest(args.tenant, path.name, path.read_text()))
+        print(store.ingest(args.tenant, args.source if args.source is not None else path.name,
+                           path.read_text()))
     else:
         hits = store.search(args.tenant, args.query)
         print(json.dumps(hits, indent=2))
