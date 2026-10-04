@@ -49,3 +49,20 @@ def test_blank_source_rejected_before_creating_database(tmp_path, monkeypatch, c
     assert exc.value.code == 2
     assert "--source cannot be blank" in capsys.readouterr().err
     assert not db.exists()
+
+
+@pytest.mark.parametrize("tenant", ["", "   ", "\t\n"])
+@pytest.mark.parametrize("command", ["ingest", "search"])
+def test_blank_tenant_is_usage_error_before_io(tmp_path, monkeypatch, capsys, tenant, command):
+    path = tmp_path / "knowledge.db"
+    # The nonexistent file also checks that validation precedes reading input.
+    argument = str(tmp_path / "missing.md") if command == "ingest" else "outage"
+    monkeypatch.setattr("sys.argv", ["retrieval", "--db", str(path), command,
+                                    "--tenant", tenant, argument])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "--tenant cannot be blank" in captured.err
+    assert not path.exists()

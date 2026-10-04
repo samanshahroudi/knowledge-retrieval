@@ -19,6 +19,8 @@ def main() -> None:
     search.add_argument("query")
     search.add_argument("--answer", action="store_true")
     args = parser.parse_args()
+    if not args.tenant.strip():
+        parser.error("--tenant cannot be blank")
     if args.command == "ingest" and args.source is not None and not args.source.strip():
         parser.error("--source cannot be blank")
     store = Store(args.db, embed=openai_embed if args.embeddings else None)
