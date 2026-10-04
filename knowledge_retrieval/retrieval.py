@@ -7,6 +7,7 @@ import re
 import sqlite3
 from collections import Counter
 from collections.abc import Callable
+from contextlib import closing
 from pathlib import Path
 
 
@@ -44,7 +45,7 @@ class Store:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.embed = embed
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db, db:
             db.execute("CREATE TABLE IF NOT EXISTS chunks (id TEXT PRIMARY KEY, tenant TEXT NOT NULL, source TEXT NOT NULL, body TEXT NOT NULL)")
             db.execute("CREATE INDEX IF NOT EXISTS tenant_idx ON chunks(tenant)")
             db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(id UNINDEXED, body)")
@@ -57,7 +58,7 @@ class Store:
         if size <= 0:
             raise ValueError("chunk size must be positive")
         words = text.split()
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             ids = [r[0] for r in db.execute("SELECT id FROM chunks WHERE tenant=? AND source=?", (tenant, source))]
             for key in ids:
                 db.execute("DELETE FROM chunk_fts WHERE id=?", (key,))
@@ -84,7 +85,7 @@ class Store:
         terms = list(q)
         if not terms:
             return []
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             lexical = db.execute(
                 "SELECT c.id FROM chunk_fts f JOIN chunks c ON c.id=f.id "
                 "WHERE c.tenant=? AND chunk_fts MATCH ? ORDER BY bm25(chunk_fts), c.id LIMIT 30",

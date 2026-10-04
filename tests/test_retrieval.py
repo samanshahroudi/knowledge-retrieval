@@ -225,3 +225,31 @@ def test_blank_ingestion_identity_leaves_index_unchanged(tmp_path, tenant, sourc
         assert db.execute("SELECT tenant,source,body FROM chunks").fetchall() == [
             ("demo", "runbook", "original outage procedure")]
     assert store.search("demo", "outage") == before
+
+
+def test_connections_close_after_ingestion_search_and_rollback(tmp_path, monkeypatch):
+    connections = []
+    connect = sqlite3.connect
+
+    def track_connection(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(sqlite3, "connect", track_connection)
+    store = Store(str(tmp_path / "knowledge.db"), embed=lambda text: [1.0])
+    store.ingest("demo", "runbook", "original outage procedure")
+    before = store.search("demo", "outage")
+
+    def unavailable(text):
+        raise RuntimeError("embedding unavailable")
+
+    store.embed = unavailable
+    with pytest.raises(RuntimeError, match="embedding unavailable"):
+        store.ingest("demo", "runbook", "replacement outage procedure")
+    store.embed = lambda text: [1.0]
+    assert store.search("demo", "outage") == before
+    assert connections
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+            connection.execute("SELECT 1")
