@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 
 from .retrieval import Store, grounded_answer, openai_embed
 
@@ -23,12 +24,16 @@ def main() -> None:
         parser.error("--tenant cannot be blank")
     if args.command == "ingest" and args.source is not None and not args.source.strip():
         parser.error("--source cannot be blank")
+    if args.command == "ingest":
+        path = Path(args.file)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            parser.error(f"cannot read input file {path}: {exc}")
     store = Store(args.db, embed=openai_embed if args.embeddings else None)
     if args.command == "ingest":
-        from pathlib import Path
-        path = Path(args.file)
         print(store.ingest(args.tenant, args.source if args.source is not None else path.name,
-                           path.read_text()))
+                           text))
     else:
         hits = store.search(args.tenant, args.query)
         print(json.dumps(hits, indent=2))

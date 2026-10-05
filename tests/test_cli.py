@@ -4,6 +4,37 @@ from knowledge_retrieval.cli import main
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("input_kind", ["missing", "directory", "invalid_utf8"])
+def test_unreadable_input_is_usage_error_before_database_creation(
+    tmp_path, monkeypatch, capsys, input_kind
+):
+    path = tmp_path / "runbook.md"
+    if input_kind == "directory":
+        path.mkdir()
+    elif input_kind == "invalid_utf8":
+        path.write_bytes(b"\xff")
+    db = tmp_path / "new" / "knowledge.db"
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(db), "ingest",
+                                    "--tenant", "demo", str(path)])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "cannot read input file" in captured.err
+    assert not db.parent.exists()
+
+
+def test_utf8_ingestion_preserves_document_text(tmp_path, monkeypatch):
+    path = tmp_path / "runbook.md"
+    path.write_text("incident café recovery", encoding="utf-8")
+    db = tmp_path / "knowledge.db"
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(db), "ingest",
+                                    "--tenant", "demo", str(path)])
+    main()
+    assert Store(str(db)).search("demo", "incident")[0]["text"] == "incident café recovery"
+
+
 def test_explicit_sources_keep_same_basename_documents_separate(tmp_path, monkeypatch, capsys):
     db = tmp_path / "knowledge.db"
     files = []
