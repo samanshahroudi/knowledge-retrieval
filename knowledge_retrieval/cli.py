@@ -22,6 +22,8 @@ def main() -> None:
     args = parser.parse_args()
     if not args.tenant.strip():
         parser.error("--tenant cannot be blank")
+    if args.command == "search" and not args.query.strip():
+        parser.error("query cannot be blank")
     if args.command == "ingest" and args.source is not None and not args.source.strip():
         parser.error("--source cannot be blank")
     if args.command == "ingest":

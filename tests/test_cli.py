@@ -4,6 +4,23 @@ from knowledge_retrieval.cli import main
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("query", ["", "   ", "\t\n"])
+@pytest.mark.parametrize("answer", [False, True])
+def test_blank_query_is_usage_error_before_io(tmp_path, monkeypatch, capsys, query, answer):
+    path = tmp_path / "new" / "knowledge.db"
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer",
+                        lambda *args: pytest.fail("blank query must not request an answer"))
+    monkeypatch.setattr("sys.argv", ["retrieval", "--db", str(path), "search",
+                                    "--tenant", "demo", query, *(["--answer"] if answer else [])])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "query cannot be blank" in captured.err
+    assert not path.parent.exists()
+
+
 @pytest.mark.parametrize("input_kind", ["missing", "directory", "invalid_utf8"])
 def test_unreadable_input_is_usage_error_before_database_creation(
     tmp_path, monkeypatch, capsys, input_kind
