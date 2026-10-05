@@ -253,3 +253,13 @@ def test_connections_close_after_ingestion_search_and_rollback(tmp_path, monkeyp
     for connection in connections:
         with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
             connection.execute("SELECT 1")
+
+
+@pytest.mark.parametrize("tenant", ["", " ", "\t\n"])
+@pytest.mark.parametrize("query,limit", [("handoff", 5), ("", 5), ("handoff", 0)])
+def test_blank_search_tenant_is_rejected_before_io(tmp_path, monkeypatch, tenant, query, limit):
+    store = Store(str(tmp_path / "knowledge.db"))
+    monkeypatch.setattr("knowledge_retrieval.retrieval.sqlite3.connect",
+                        lambda *args, **kwargs: pytest.fail("invalid tenant must not open database"))
+    with pytest.raises(ValueError, match="tenant cannot be blank"):
+        store.search(tenant, query, limit)

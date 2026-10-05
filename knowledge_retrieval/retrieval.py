@@ -77,6 +77,8 @@ class Store:
         return math.ceil(len(words) / size)
 
     def search(self, tenant: str, query: str, limit: int = 5) -> list[dict]:
+        if not tenant.strip():
+            raise ValueError("tenant cannot be blank")
         if limit < 0:
             raise ValueError("search limit cannot be negative")
         if limit == 0:

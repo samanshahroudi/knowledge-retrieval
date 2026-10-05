@@ -30,7 +30,7 @@ python -m knowledge_retrieval.cli --db knowledge.db ingest --tenant demo fixture
 python -m knowledge_retrieval.cli --db knowledge.db search --tenant demo 'incident handoff checklist'
 ```
 
-Ingestion defaults to the file basename as its source. For files with the same basename, pass distinct stable names, for example `ingest --tenant demo --source team-one/runbook.md team-one/runbook.md`. Reuse the same `--source` to replace that document; blank source names are rejected. Both commands reject blank tenant names before creating a database or reading input files.
+Ingestion defaults to the file basename as its source. For files with the same basename, pass distinct stable names, for example `ingest --tenant demo --source team-one/runbook.md team-one/runbook.md`. Reuse the same `--source` to replace that document; blank source names are rejected. Both commands reject blank tenant names before creating a database or reading input files. The store also rejects blank tenants at the search boundary, including empty queries and zero-result limits.
 
 Add `--answer` to the search command for an OpenAI-generated answer; set `OPENAI_API_KEY` first. Ingest `security.md` under another tenant and confirm that `demo` searches cannot see it.
 Pass `--embeddings` on both ingest and search to include vector similarity. Keep that mode consistent for a database; the demo does not yet version embedding models.
