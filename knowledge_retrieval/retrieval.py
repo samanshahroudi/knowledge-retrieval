@@ -55,6 +55,8 @@ class Store:
         import hashlib
         if not tenant.strip() or not source.strip():
             raise ValueError("tenant and source cannot be blank")
+        if not isinstance(size, int) or isinstance(size, bool):
+            raise TypeError("chunk size must be an integer")
         if size <= 0:
             raise ValueError("chunk size must be positive")
         words = text.split()
@@ -79,6 +81,8 @@ class Store:
     def search(self, tenant: str, query: str, limit: int = 5) -> list[dict]:
         if not tenant.strip():
             raise ValueError("tenant cannot be blank")
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise TypeError("search limit must be an integer")
         if limit < 0:
             raise ValueError("search limit cannot be negative")
         if limit == 0:
