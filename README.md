@@ -31,6 +31,7 @@ python -m knowledge_retrieval.cli --db knowledge.db search --tenant demo 'incide
 ```
 
 Ingestion defaults to the file basename as its source. For files with the same basename, pass distinct stable names, for example `ingest --tenant demo --source team-one/runbook.md team-one/runbook.md`. Reuse the same `--source` to replace that document; blank source names are rejected. Both commands reject blank tenant names before creating a database or reading input files. The store also rejects blank tenants at the search boundary, including empty queries and zero-result limits.
+`Store.ingest` requires a positive integer chunk size, and `Store.search` requires a nonnegative integer limit. Booleans and other noninteger values are rejected before database or embedding work; a zero search limit returns no results.
 
 Add `--answer` to the search command for an OpenAI-generated answer; set `OPENAI_API_KEY` first. Ingest `security.md` under another tenant and confirm that `demo` searches cannot see it.
 The search command rejects blank queries before creating a database or requesting an answer.

@@ -56,6 +56,18 @@ def test_empty_reingestion_removes_stale_chunks(tmp_path):
         store.ingest("a", "runbook", "text", size=0)
 
 
+@pytest.mark.parametrize("count", [True, False, 1.0, 1.5, "1", None])
+def test_invalid_counts_are_rejected_before_database_or_embedding_work(tmp_path, monkeypatch, count):
+    store = Store(str(tmp_path / "knowledge.db"),
+                  embed=lambda text: pytest.fail("invalid counts must not invoke embeddings"))
+    monkeypatch.setattr("knowledge_retrieval.retrieval.sqlite3.connect",
+                        lambda *args, **kwargs: pytest.fail("invalid counts must not open SQLite"))
+    with pytest.raises(TypeError, match="chunk size must be an integer"):
+        store.ingest("a", "runbook", "incident recovery", size=count)
+    with pytest.raises(TypeError, match="search limit must be an integer"):
+        store.search("a", "incident", limit=count)
+
+
 def test_negative_search_limit_is_rejected(tmp_path):
     store = Store(str(tmp_path / "knowledge.db"))
     store.ingest("a", "runbook", "incident handoff checklist")
