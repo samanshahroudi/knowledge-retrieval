@@ -61,6 +61,7 @@ class Store:
             raise ValueError("chunk size must be positive")
         words = text.split()
         with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute("BEGIN IMMEDIATE")
             ids = [r[0] for r in db.execute("SELECT id FROM chunks WHERE tenant=? AND source=?", (tenant, source))]
             for key in ids:
                 db.execute("DELETE FROM chunk_fts WHERE id=?", (key,))

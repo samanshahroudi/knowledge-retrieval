@@ -1,10 +1,53 @@
 import hashlib
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, current_thread
 
 import pytest
 
 from knowledge_retrieval.langchain_tool import make_search_tool
 from knowledge_retrieval.retrieval import Store
+
+
+def test_concurrent_replacement_removes_all_previous_index_entries(tmp_path, monkeypatch):
+    store = Store(str(tmp_path / "knowledge.db"), embed=lambda text: [1.0])
+    store.ingest("demo", "runbook", "original")
+    writer_ready = Event()
+    replacement_started = Event()
+    connect = sqlite3.connect
+
+    def tracked_connect(*args, **kwargs):
+        db = connect(*args, **kwargs)
+        if current_thread().name.startswith("replacement"):
+            def trace(sql):
+                if sql == "BEGIN IMMEDIATE" or sql.startswith("DELETE FROM"):
+                    replacement_started.set()
+            db.set_trace_callback(trace)
+        return db
+
+    def embed(text):
+        if text == "second":
+            writer_ready.set()
+            assert replacement_started.wait(5)
+        return [1.0]
+
+    monkeypatch.setattr(sqlite3, "connect", tracked_connect)
+    store.embed = embed
+    with ThreadPoolExecutor(max_workers=1) as writer, ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="replacement",
+    ) as replacement:
+        first = writer.submit(store.ingest, "demo", "runbook", "first second", 1)
+        assert writer_ready.wait(5)
+        # The earlier write is uncommitted when this replacement starts.
+        second = replacement.submit(store.ingest, "demo", "runbook", "final")
+        assert first.result(timeout=10) == 2
+        assert second.result(timeout=10) == 1
+    with connect(store.path) as db:
+        ids = {row[0] for row in db.execute("SELECT id FROM chunks")}
+        assert len(ids) == 1
+        assert db.execute("SELECT body FROM chunks").fetchall() == [("final",)]
+        for table in ("chunk_fts", "vectors"):
+            assert [row[0] for row in db.execute(f"SELECT id FROM {table}")] == list(ids)
 
 
 def test_tenant_filter_and_reingestion(tmp_path):
