@@ -89,14 +89,14 @@ class Store:
             return []
         q = tokens(query)
         terms = list(q)
-        if not terms:
+        if not query.strip() or (not terms and not self.embed):
             return []
         with closing(sqlite3.connect(self.path)) as db, db:
             lexical = db.execute(
                 "SELECT c.id FROM chunk_fts f JOIN chunks c ON c.id=f.id "
                 "WHERE c.tenant=? AND chunk_fts MATCH ? ORDER BY bm25(chunk_fts), c.id LIMIT 30",
                 (tenant, " OR ".join(terms)),
-            ).fetchall()
+            ).fetchall() if terms else []
             rows = db.execute("SELECT id,source,body FROM chunks WHERE tenant=? ORDER BY id", (tenant,)).fetchall()
             vectors = db.execute("SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id WHERE c.tenant=? ORDER BY v.id", (tenant,)).fetchall()
         scored_overlap = [(r[0], cosine(q, tokens(r[2]))) for r in rows]

@@ -26,6 +26,28 @@ def test_vector_finds_synonym(tmp_path):
     assert store.search("a", "downtime")[0]["source"] == "runbook"
 
 
+@pytest.mark.parametrize("query", ["故障", "قطعی", "διακοπή"])
+def test_vector_search_handles_queries_without_ascii_tokens(tmp_path, query):
+    calls = []
+    store = Store(str(tmp_path / "vectors.db"),
+                  embed=lambda text: calls.append(text) or [1.0, 0.0])
+    store.ingest("demo", "runbook", "outage response procedure")
+    store.ingest("other", "secret", "private outage response procedure")
+    calls.clear()
+    hits = make_search_tool(store, "demo").invoke({"query": query})
+    assert [(hit["tenant"], hit["source"]) for hit in hits] == [("demo", "runbook")]
+    assert calls == [query]
+
+
+@pytest.mark.parametrize("query", ["", " \t\n"])
+def test_blank_vector_query_skips_database_and_embedding(tmp_path, monkeypatch, query):
+    store = Store(str(tmp_path / "vectors.db"),
+                  embed=lambda text: pytest.fail("blank query must not invoke embeddings"))
+    monkeypatch.setattr("knowledge_retrieval.retrieval.sqlite3.connect",
+                        lambda *args, **kwargs: pytest.fail("blank query must not open SQLite"))
+    assert store.search("demo", query) == []
+
+
 def test_vector_ranking_normalizes_magnitude_and_omits_nonpositive_scores(tmp_path):
     vectors = {"query": [1.0, 0.0], "closest": [1.0, 0.0], "large": [10.0, 10.0],
                "opposite": [-1.0, 0.0], "orthogonal": [0.0, 1.0], "zero": [0.0, 0.0]}
