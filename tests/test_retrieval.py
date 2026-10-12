@@ -320,3 +320,34 @@ def test_blank_search_tenant_is_rejected_before_io(tmp_path, monkeypatch, tenant
                         lambda *args, **kwargs: pytest.fail("invalid tenant must not open database"))
     with pytest.raises(ValueError, match="tenant cannot be blank"):
         store.search(tenant, query, limit)
+
+
+def test_later_chunk_embedding_failure_rolls_back_entire_reingestion(tmp_path):
+    store = Store(str(tmp_path / "knowledge.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "original outage response procedure", size=2)
+    before = store.search("demo", "outage")
+
+    def snapshot():
+        with sqlite3.connect(store.path) as db:
+            return {table: db.execute(f"SELECT * FROM {table} ORDER BY id").fetchall()
+                    for table in ("chunks", "chunk_fts", "vectors")}
+
+    original = snapshot()
+    calls = []
+
+    def fail_second_chunk(text):
+        calls.append(text)
+        if len(calls) == 2:
+            raise RuntimeError("embedding unavailable")
+        return [0.0, 1.0]
+
+    store.embed = fail_second_chunk
+    with pytest.raises(RuntimeError, match="embedding unavailable"):
+        store.ingest("demo", "runbook", "replacement outage new procedure", size=2)
+    assert calls == ["replacement outage", "new procedure"]
+    assert snapshot() == original
+    store.embed = lambda text: [1.0, 0.0]
+    assert store.search("demo", "outage") == before
+    assert store.ingest("demo", "runbook", "replacement outage new procedure", size=2) == 2
+    assert {hit["text"] for hit in store.search("demo", "outage")} == {
+        "replacement outage", "new procedure"}
