@@ -114,3 +114,33 @@ def test_blank_tenant_is_usage_error_before_io(tmp_path, monkeypatch, capsys, te
     assert captured.out == ""
     assert "--tenant cannot be blank" in captured.err
     assert not path.exists()
+
+
+@pytest.mark.parametrize("command", ["ingest", "search"])
+def test_invalid_embeddings_are_usage_errors_without_output(
+    tmp_path, monkeypatch, capsys, command,
+):
+    db = tmp_path / "knowledge.db"
+    store = Store(str(db), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook.md", "incident recovery")
+    before = store.search("demo", "incident")
+    source = tmp_path / "runbook.md"
+    source.write_text("replacement incident procedure", encoding="utf-8")
+    # Ingest rejects an empty vector; search rejects a changed model dimension.
+    monkeypatch.setattr("knowledge_retrieval.cli.openai_embed",
+                        lambda text: [] if command == "ingest" else [1.0])
+    flags = ["--answer"] if command == "search" else []
+    argument = str(source) if command == "ingest" else "incident"
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer",
+                        lambda *args: pytest.fail("invalid retrieval must not request an answer"))
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(db), "--embeddings",
+                                    command, "--tenant", "demo", argument, *flags])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    reason = "at least one dimension" if command == "ingest" else "reindex documents"
+    assert reason in captured.err
+    assert "Traceback" not in captured.err
+    assert store.search("demo", "incident") == before

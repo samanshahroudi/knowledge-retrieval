@@ -34,10 +34,17 @@ def main() -> None:
             parser.error(f"cannot read input file {path}: {exc}")
     store = Store(args.db, embed=openai_embed if args.embeddings else None)
     if args.command == "ingest":
-        print(store.ingest(args.tenant, args.source if args.source is not None else path.name,
-                           text))
+        try:
+            count = store.ingest(args.tenant, args.source if args.source is not None else path.name,
+                                 text)
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(count)
     else:
-        hits = store.search(args.tenant, args.query)
+        try:
+            hits = store.search(args.tenant, args.query)
+        except ValueError as exc:
+            parser.error(str(exc))
         print(json.dumps(hits, indent=2))
         if args.answer:
             print(grounded_answer(args.query, hits))
