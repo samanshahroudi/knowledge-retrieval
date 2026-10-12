@@ -144,3 +144,29 @@ def test_invalid_embeddings_are_usage_errors_without_output(
     assert reason in captured.err
     assert "Traceback" not in captured.err
     assert store.search("demo", "incident") == before
+
+
+@pytest.mark.parametrize("command", ["ingest", "search"])
+@pytest.mark.parametrize("invalid", [[True], ["1"]])
+def test_malformed_embeddings_are_usage_errors(tmp_path, monkeypatch, capsys, command, invalid):
+    db = tmp_path / "knowledge.db"
+    store = Store(str(db), embed=lambda text: [1.0])
+    store.ingest("demo", "runbook.md", "original incident procedure")
+    before = store.search("demo", "incident")
+    document = tmp_path / "runbook.md"
+    document.write_text("replacement incident procedure", encoding="utf-8")
+    monkeypatch.setattr("knowledge_retrieval.cli.openai_embed", lambda text: invalid)
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer",
+                        lambda *args: pytest.fail("invalid vectors must not request an answer"))
+    argument = str(document) if command == "ingest" else "incident"
+    flags = [] if command == "ingest" else ["--answer"]
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(db), "--embeddings",
+                                    command, "--tenant", "demo", argument, *flags])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "embedding must be a list of numbers" in captured.err
+    assert "Traceback" not in captured.err
+    assert store.search("demo", "incident") == before

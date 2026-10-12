@@ -227,6 +227,29 @@ def test_empty_embeddings_are_rejected(tmp_path, location):
         assert store.search("demo", "original")[0]["text"] == "original outage procedure"
 
 
+@pytest.mark.parametrize("invalid", [[True, 0], ["1", 0], [None, 0], {"x": 1}, "12", None])
+@pytest.mark.parametrize("location", ["ingest", "query", "stored"])
+def test_malformed_embeddings_are_rejected_without_changing_index(tmp_path, invalid, location):
+    import json
+
+    store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook", "original outage procedure")
+    if location == "stored":
+        with sqlite3.connect(store.path) as db:
+            db.execute("UPDATE vectors SET vector=?", (json.dumps(invalid),))
+    else:
+        store.embed = lambda text: invalid
+    with pytest.raises(ValueError, match="embedding .*numbers"):
+        if location == "ingest":
+            store.ingest("demo", "runbook", "replacement outage procedure")
+        else:
+            store.search("demo", "downtime")
+    store.embed = lambda text: [1.0, 0.0]
+    with sqlite3.connect(store.path) as db:
+        db.execute("UPDATE vectors SET vector='[1.0, 0.0]'")
+    assert store.search("demo", "downtime")[0]["text"] == "original outage procedure"
+
+
 @pytest.mark.parametrize("location", ["query", "stored"])
 def test_embedding_dimension_mismatch_requires_reindexing(tmp_path, location):
     store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
