@@ -1,7 +1,49 @@
+import sqlite3
+
 import pytest
 
 from knowledge_retrieval.cli import main
 from knowledge_retrieval.retrieval import Store
+
+
+@pytest.mark.parametrize("command", ["ingest", "search"])
+def test_database_operation_errors_are_usage_errors(tmp_path, monkeypatch, capsys, command):
+    path = tmp_path / "knowledge.db"
+    store = Store(str(path))
+    store.ingest("demo", "runbook.md", "original incident procedure")
+    document = tmp_path / "runbook.md"
+    document.write_text("replacement incident procedure", encoding="utf-8")
+    with sqlite3.connect(path) as db:
+        if command == "ingest":
+            db.execute("CREATE TRIGGER fail_chunk BEFORE INSERT ON chunks "
+                       "BEGIN SELECT RAISE(ABORT, 'chunk storage unavailable'); END")
+    if command == "search":
+        search = Store.search
+
+        def fail_search(self, *args):
+            # Fail a real read after the CLI has initialized its store.
+            with sqlite3.connect(self.path) as db:
+                db.execute("DROP TABLE chunk_fts")
+            return search(self, *args)
+
+        monkeypatch.setattr(Store, "search", fail_search)
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer",
+                        lambda *args: pytest.fail("failed retrieval must not request an answer"))
+    argument = str(document) if command == "ingest" else "incident"
+    flags = [] if command == "ingest" else ["--answer"]
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), command,
+                                    "--tenant", "demo", argument, *flags])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert f"database operation failed for {path}" in captured.err
+    assert "Traceback" not in captured.err
+    if command == "ingest":
+        with sqlite3.connect(path) as db:
+            assert db.execute("SELECT body FROM chunks").fetchall() == [
+                ("original incident procedure",)]
 
 
 @pytest.mark.parametrize("problem", ["directory", "parent_file", "invalid_database"])

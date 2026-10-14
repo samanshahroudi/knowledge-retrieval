@@ -40,6 +40,7 @@ Pass `--embeddings` on both ingest and search to include vector similarity. Keep
 Embedding search also handles nonblank queries with no ASCII tokens, such as Chinese, Persian, or Greek text. Lexical ranking still uses ASCII alphanumeric tokens; blank queries never request embeddings.
 
 Database initialization failures (including invalid SQLite files and unusable paths) produce CLI usage errors with the database path and exit status 2.
+Database read and write failures during ingestion or search also exit with status 2 and name the database, without printing results or requesting an answer.
 
 ## Trade-offs, limitations, and next production steps
 

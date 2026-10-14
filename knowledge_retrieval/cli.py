@@ -41,12 +41,16 @@ def main() -> None:
         try:
             count = store.ingest(args.tenant, args.source if args.source is not None else path.name,
                                  text)
+        except sqlite3.DatabaseError as exc:
+            parser.error(f"database operation failed for {args.db}: {exc}")
         except ValueError as exc:
             parser.error(str(exc))
         print(count)
     else:
         try:
             hits = store.search(args.tenant, args.query)
+        except sqlite3.DatabaseError as exc:
+            parser.error(f"database operation failed for {args.db}: {exc}")
         except ValueError as exc:
             parser.error(str(exc))
         print(json.dumps(hits, indent=2))
