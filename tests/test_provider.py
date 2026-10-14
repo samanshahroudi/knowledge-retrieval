@@ -35,3 +35,28 @@ def test_answer_without_hits_does_not_open_provider_client(monkeypatch):
     monkeypatch.setattr("openai.OpenAI", factory)
     assert grounded_answer("Recovery?", []) == "I could not find relevant material."
     factory.assert_not_called()
+
+
+@pytest.mark.parametrize("answer", ["", " \t\n"])
+def test_blank_provider_answer_is_rejected_without_cli_output(
+    tmp_path, monkeypatch, capsys, answer,
+):
+    from knowledge_retrieval.cli import main
+    from knowledge_retrieval.retrieval import Store
+
+    path = tmp_path / "knowledge.db"
+    Store(str(path)).ingest("demo", "runbook.md", "incident recovery procedure")
+    client = Mock()
+    client.responses.create.return_value = SimpleNamespace(output_text=answer)
+    monkeypatch.setattr("openai.OpenAI", Mock(return_value=client))
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), "search",
+                                    "--tenant", "demo", "incident", "--answer"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "model returned no answer text" in captured.err
+    assert "Traceback" not in captured.err
+    client.responses.create.assert_called_once()
+    client.close.assert_called_once_with()
