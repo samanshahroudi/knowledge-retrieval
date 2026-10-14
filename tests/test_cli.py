@@ -6,6 +6,70 @@ from knowledge_retrieval.cli import main
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("operation", ["ingest", "search", "answer"])
+def test_provider_failures_are_usage_errors_without_partial_output(
+    tmp_path, monkeypatch, capsys, operation,
+):
+    import httpx
+    from openai import AuthenticationError
+
+    path = tmp_path / "knowledge.db"
+    store = Store(str(path), embed=lambda text: [1.0])
+    store.ingest("demo", "runbook.md", "original incident procedure")
+    error = AuthenticationError("private provider response", response=httpx.Response(
+        401, request=httpx.Request("POST", "https://provider.example.test/responses")), body=None)
+
+    def fail(*args):
+        raise error
+
+    monkeypatch.setattr("knowledge_retrieval.cli.openai_embed", fail)
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer", fail)
+    document = tmp_path / "runbook.md"
+    document.write_text("replacement incident procedure", encoding="utf-8")
+    command = "ingest" if operation == "ingest" else "search"
+    flags = [] if operation == "answer" else ["--embeddings"]
+    argument = str(document) if command == "ingest" else "incident"
+    answer_flags = ["--answer"] if command == "search" else []
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), *flags, command,
+                                    "--tenant", "demo", argument, *answer_flags])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "model provider request failed" in captured.err
+    assert "private provider response" not in captured.err
+    assert "Traceback" not in captured.err
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT body FROM chunks").fetchall() == [
+            ("original incident procedure",)]
+        assert db.execute("SELECT vector FROM vectors").fetchall() == [("[1.0]",)]
+
+
+def test_successful_answer_prints_retrieved_hits_and_answer(tmp_path, monkeypatch, capsys):
+    import json
+
+    path = tmp_path / "knowledge.db"
+    store = Store(str(path))
+    store.ingest("demo", "runbook.md", "incident recovery procedure")
+    hits = store.search("demo", "incident")
+
+    def answer(question, evidence):
+        assert question == "incident"
+        assert evidence == hits
+        return "Recovery confirmed."
+
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer", answer)
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), "search",
+                                    "--tenant", "demo", "incident", "--answer"])
+    main()
+    captured = capsys.readouterr()
+    parsed, end = json.JSONDecoder().raw_decode(captured.out)
+    assert parsed == hits
+    assert captured.out[end:].strip() == "Recovery confirmed."
+    assert captured.err == ""
+
+
 @pytest.mark.parametrize("command", ["ingest", "search"])
 def test_database_operation_errors_are_usage_errors(tmp_path, monkeypatch, capsys, command):
     path = tmp_path / "knowledge.db"

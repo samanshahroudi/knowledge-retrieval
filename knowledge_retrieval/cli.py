@@ -4,6 +4,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from openai import OpenAIError
+
 from .retrieval import Store, grounded_answer, openai_embed
 
 
@@ -41,6 +43,8 @@ def main() -> None:
         try:
             count = store.ingest(args.tenant, args.source if args.source is not None else path.name,
                                  text)
+        except OpenAIError:
+            parser.error("model provider request failed; check credentials and provider availability")
         except sqlite3.DatabaseError as exc:
             parser.error(f"database operation failed for {args.db}: {exc}")
         except ValueError as exc:
@@ -49,13 +53,16 @@ def main() -> None:
     else:
         try:
             hits = store.search(args.tenant, args.query)
+            answer = grounded_answer(args.query, hits) if args.answer else None
+        except OpenAIError:
+            parser.error("model provider request failed; check credentials and provider availability")
         except sqlite3.DatabaseError as exc:
             parser.error(f"database operation failed for {args.db}: {exc}")
         except ValueError as exc:
             parser.error(str(exc))
         print(json.dumps(hits, indent=2))
         if args.answer:
-            print(grounded_answer(args.query, hits))
+            print(answer)
 
 
 if __name__ == "__main__":

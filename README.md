@@ -41,6 +41,7 @@ Embedding search also handles nonblank queries with no ASCII tokens, such as Chi
 
 Database initialization failures (including invalid SQLite files and unusable paths) produce CLI usage errors with the database path and exit status 2.
 Database read and write failures during ingestion or search also exit with status 2 and name the database, without printing results or requesting an answer.
+Model provider failures during embedding or answer generation exit with status 2 and a concise error without exposing provider responses or printing partial results. Failed embedding ingestion preserves the existing source.
 
 ## Trade-offs, limitations, and next production steps
 
