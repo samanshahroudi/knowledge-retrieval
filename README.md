@@ -39,6 +39,8 @@ The search command rejects blank queries before creating a database or requestin
 Pass `--embeddings` on both ingest and search to include vector similarity. Keep that mode consistent for a database; the demo does not yet version embedding models.
 Embedding search also handles nonblank queries with no ASCII tokens, such as Chinese, Persian, or Greek text. Lexical ranking still uses ASCII alphanumeric tokens; blank queries never request embeddings.
 
+Database initialization failures (including invalid SQLite files and unusable paths) produce CLI usage errors with the database path and exit status 2.
+
 ## Trade-offs, limitations, and next production steps
 
 Word-count chunking can split a sentence and ignores document structure. The token-overlap signal is not semantic and may fail on synonyms. The vector path makes one paid API call per chunk and does not batch requests; its model version is not stored. Add batched embedding generation with versioned vectors, reranking, document-level ACLs, incremental ingestion, source freshness, and citation verification before a production rollout. FTS query construction limits terms to alphanumeric tokens, but unbounded ingestion still needs quotas and MIME validation. A model can hallucinate citations despite the prompt; validate cited IDs and evaluate answer faithfulness separately.

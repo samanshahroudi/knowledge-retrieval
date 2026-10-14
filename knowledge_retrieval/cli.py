@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sqlite3
 from pathlib import Path
 
 from .retrieval import Store, grounded_answer, openai_embed
@@ -32,7 +33,10 @@ def main() -> None:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
             parser.error(f"cannot read input file {path}: {exc}")
-    store = Store(args.db, embed=openai_embed if args.embeddings else None)
+    try:
+        store = Store(args.db, embed=openai_embed if args.embeddings else None)
+    except (OSError, sqlite3.DatabaseError) as exc:
+        parser.error(f"cannot open database {args.db}: {exc}")
     if args.command == "ingest":
         try:
             count = store.ingest(args.tenant, args.source if args.source is not None else path.name,

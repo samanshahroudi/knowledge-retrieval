@@ -4,6 +4,27 @@ from knowledge_retrieval.cli import main
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("problem", ["directory", "parent_file", "invalid_database"])
+def test_database_initialization_errors_are_usage_errors(tmp_path, monkeypatch, capsys, problem):
+    path = tmp_path / "knowledge.db"
+    if problem == "directory":
+        path.mkdir()
+    elif problem == "parent_file":
+        path.write_text("not a directory")
+        path = path / "knowledge.db"
+    else:
+        path.write_text("not a SQLite database")
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), "search",
+                                    "--tenant", "demo", "incident"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert f"cannot open database {path}" in captured.err
+    assert "Traceback" not in captured.err
+
+
 @pytest.mark.parametrize("query", ["", "   ", "\t\n"])
 @pytest.mark.parametrize("answer", [False, True])
 def test_blank_query_is_usage_error_before_io(tmp_path, monkeypatch, capsys, query, answer):
