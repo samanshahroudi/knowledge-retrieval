@@ -150,4 +150,7 @@ def openai_embed(text: str) -> list[float]:
     """Optional vector path. Keep the model fixed when reusing a database."""
     from openai import OpenAI
     with closing(OpenAI(timeout=20)) as client:
-        return client.embeddings.create(model="text-embedding-3-small", input=text).data[0].embedding
+        response = client.embeddings.create(model="text-embedding-3-small", input=text)
+        if not response.data:
+            raise ValueError("model returned no embedding")
+        return response.data[0].embedding

@@ -1,3 +1,4 @@
+import sqlite3
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -35,6 +36,42 @@ def test_answer_without_hits_does_not_open_provider_client(monkeypatch):
     monkeypatch.setattr("openai.OpenAI", factory)
     assert grounded_answer("Recovery?", []) == "I could not find relevant material."
     factory.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["ingest", "search"])
+def test_empty_embedding_response_is_usage_error_and_preserves_index(
+    tmp_path, monkeypatch, capsys, command,
+):
+    from knowledge_retrieval.cli import main
+    from knowledge_retrieval.retrieval import Store
+
+    path = tmp_path / "knowledge.db"
+    store = Store(str(path), embed=lambda text: [1.0, 0.0])
+    store.ingest("demo", "runbook.md", "original incident procedure")
+    before = store.search("demo", "incident")
+    client = Mock()
+    client.embeddings.create.return_value = SimpleNamespace(data=[])
+    monkeypatch.setattr("openai.OpenAI", Mock(return_value=client))
+    monkeypatch.setattr("knowledge_retrieval.cli.grounded_answer",
+                        lambda *args: pytest.fail("failed embeddings must not request an answer"))
+    document = tmp_path / "runbook.md"
+    document.write_text("replacement incident procedure", encoding="utf-8")
+    argument = str(document) if command == "ingest" else "incident"
+    flags = [] if command == "ingest" else ["--answer"]
+    monkeypatch.setattr("sys.argv", ["knowledge", "--db", str(path), "--embeddings", command,
+                                    "--tenant", "demo", argument, *flags])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "model returned no embedding" in captured.err
+    assert "Traceback" not in captured.err
+    client.embeddings.create.assert_called_once()
+    client.close.assert_called_once_with()
+    assert store.search("demo", "incident") == before
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT vector FROM vectors").fetchall() == [("[1.0, 0.0]",)]
 
 
 @pytest.mark.parametrize("answer", ["", " \t\n"])

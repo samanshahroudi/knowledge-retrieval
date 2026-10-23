@@ -43,6 +43,7 @@ Database initialization failures (including invalid SQLite files and unusable pa
 Database read and write failures during ingestion or search also exit with status 2 and name the database, without printing results or requesting an answer.
 Model provider failures during embedding or answer generation exit with status 2 and a concise error without exposing provider responses or printing partial results. Failed embedding ingestion preserves the existing source.
 Empty or whitespace-only generated answers also exit with status 2 before printing retrieved hits; the provider client closes on these failures.
+Embedding responses with no data also exit with status 2 and a concise error, without printing results or requesting an answer. Failed ingestion preserves the existing index, and the provider client closes.
 
 ## Trade-offs, limitations, and next production steps
 
