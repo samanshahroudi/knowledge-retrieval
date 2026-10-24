@@ -181,7 +181,8 @@ def test_vector_search_filters_tenants_before_dimension_checks(tmp_path):
         ("demo", "runbook", "outage response procedure")]
 
 
-@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf"),
+                                   pytest.param(10**400, id="oversized-integer")])
 def test_nonfinite_embedding_reingestion_preserves_original_index(tmp_path, invalid):
     store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])
     store.ingest("demo", "runbook", "original outage procedure")
@@ -193,7 +194,8 @@ def test_nonfinite_embedding_reingestion_preserves_original_index(tmp_path, inva
     assert store.search("demo", "outage") == before
 
 
-@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf"),
+                                   pytest.param(10**400, id="oversized-integer")])
 @pytest.mark.parametrize("location", ["query", "stored"])
 def test_search_rejects_nonfinite_embeddings(tmp_path, invalid, location):
     store = Store(str(tmp_path / "vectors.db"), embed=lambda text: [1.0, 0.0])

@@ -28,7 +28,11 @@ def validate_embedding(vector: list[float]) -> list[float]:
         raise ValueError("embedding must be a list of numbers")
     if not vector:
         raise ValueError("embedding must have at least one dimension")
-    if not all(math.isfinite(value) for value in vector):
+    try:
+        finite = all(math.isfinite(value) for value in vector)
+    except OverflowError:
+        finite = False
+    if not finite:
         raise ValueError("embedding values must be finite")
     return vector
 
