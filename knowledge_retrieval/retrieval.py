@@ -106,7 +106,12 @@ class Store:
                 (tenant, " OR ".join(terms)),
             ).fetchall() if terms else []
             rows = db.execute("SELECT id,source,body FROM chunks WHERE tenant=? ORDER BY id", (tenant,)).fetchall()
-            vectors = db.execute("SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id WHERE c.tenant=? ORDER BY v.id", (tenant,)).fetchall()
+            vectors = []
+            if self.embed:
+                vectors = db.execute(
+                    "SELECT v.id,v.vector FROM vectors v JOIN chunks c ON c.id=v.id "
+                    "WHERE c.tenant=? ORDER BY v.id", (tenant,),
+                ).fetchall()
         scored_overlap = [(r[0], cosine(q, tokens(r[2]))) for r in rows]
         semantic = [key for key, score in sorted(
             (item for item in scored_overlap if item[1] > 0),
