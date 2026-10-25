@@ -7,6 +7,19 @@ from knowledge_retrieval.langchain_tool import make_search_tool
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("size,expected", [
+    (1, 3), (2, 2), (3, 1), pytest.param(10**400, 1, id="huge-chunk-size"),
+])
+def test_ingestion_count_matches_persisted_chunks(tmp_path, size, expected):
+    store = Store(str(tmp_path / "knowledge.db"))
+    assert store.ingest("demo", "runbook", "incident handoff checklist", size=size) == expected
+    with sqlite3.connect(store.path) as db:
+        assert db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] == expected
+    assert len(store.search("demo", "incident handoff checklist")) == expected
+    assert store.ingest("demo", "runbook", "", size=size) == 0
+    assert store.search("demo", "incident") == []
+
+
 def test_tenant_filter_and_reingestion(tmp_path):
     store = Store(str(tmp_path / "knowledge.db"))
     store.ingest("a", "one", "The incident handoff checklist names an owner and next action")

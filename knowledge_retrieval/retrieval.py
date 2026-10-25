@@ -84,7 +84,7 @@ class Store:
                 if self.embed:
                     vector = validate_embedding(self.embed(body))
                     db.execute("INSERT INTO vectors VALUES (?,?)", (key, json.dumps(vector)))
-        return math.ceil(len(words) / size)
+        return (len(words) + size - 1) // size
 
     def search(self, tenant: str, query: str, limit: int = 5) -> list[dict]:
         if not tenant.strip():
