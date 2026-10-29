@@ -7,6 +7,38 @@ from knowledge_retrieval.langchain_tool import make_search_tool
 from knowledge_retrieval.retrieval import Store
 
 
+@pytest.mark.parametrize("use_embeddings", [False, True])
+def test_search_keeps_one_snapshot_during_concurrent_reingestion(
+    tmp_path, monkeypatch, use_embeddings,
+):
+    store = Store(str(tmp_path / "knowledge.db"),
+                  embed=(lambda text: [1.0, 0.0]) if use_embeddings else None)
+    store.ingest("demo", "original", "incident handoff checklist")
+    connect = sqlite3.connect
+    with connect(store.path) as db:
+        # WAL allows a writer to commit while the search holds a read snapshot.
+        db.execute("PRAGMA journal_mode=WAL")
+    expected = store.search("demo", "incident")
+    writes = []
+
+    def replace_between_reads(statement):
+        if statement.startswith("SELECT id,source,body"):
+            store.ingest("demo", "original", "")
+            store.ingest("demo", "replacement", "incident recovery procedure")
+            writes.append(True)
+
+    def traced_connection(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connection.set_trace_callback(replace_between_reads)
+        return connection
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sqlite3, "connect", traced_connection)
+        assert store.search("demo", "incident") == expected
+    assert writes == [True]
+    assert [hit["source"] for hit in store.search("demo", "incident")] == ["replacement"]
+
+
 @pytest.mark.parametrize("size,expected", [
     (1, 3), (2, 2), (3, 1), pytest.param(10**400, 1, id="huge-chunk-size"),
 ])

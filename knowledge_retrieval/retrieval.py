@@ -100,6 +100,8 @@ class Store:
         if not query.strip() or (not terms and not self.embed):
             return []
         with closing(sqlite3.connect(self.path)) as db, db:
+            # Keep rankings, chunk text, and vectors in the same read snapshot.
+            db.execute("BEGIN")
             lexical = db.execute(
                 "SELECT c.id FROM chunk_fts f JOIN chunks c ON c.id=f.id "
                 "WHERE c.tenant=? AND chunk_fts MATCH ? ORDER BY bm25(chunk_fts), c.id LIMIT 30",
